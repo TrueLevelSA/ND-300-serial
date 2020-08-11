@@ -18,8 +18,8 @@ class Sender(aenum.Enum):
     '''Represents the two different parties that can communicate and
     their respective values on the protocol.
     '''
-    user = 10
-    machine = 1
+    user = 0x10
+    machine = 0x01
 
 
 class Command(aenum.Enum):
@@ -84,7 +84,7 @@ class Message:
     def __init__(self, command, data=None):
         self.command = command
         self.data = data
-        self._validate_and_fix_data()
+        self._validate()
 
     def __repr__(self):
         '''Pretty print for debug.'''
@@ -114,7 +114,8 @@ class Message:
             # present on the protocol for commmands with no data.
             data = 0
 
-        hex_string = f'011000{self.command.value:02X}{data:02X}'
+        meta = _commands_metadata[self.command]
+        hex_string = f'01{meta.sender.value:02X}00{self.command.value:02X}{data:02X}'
         bytes_ = bytes.fromhex(hex_string)
         return bytes_ + _int_to_bytes(Message._compute_checksum(bytes_))
 
@@ -134,15 +135,15 @@ class Message:
         if checksum != computed_checksum:
             raise ValueError(f'Bad checksum, received {checksum} but computed {computed_checksum}')
         if sender != meta.sender:
-            raise ValueError(f'Bad message sender, received {sender} but expected {meta["sender"]}')
+            raise ValueError(f'Bad message sender, received {sender} but expected {meta.sender}')
         return Message(command, data)
 
-    def _validate_and_fix_data(self):
+    def _validate(self):
         meta = _commands_metadata[self.command]
         if not (self.data is None and meta.data_type is None
                 or isinstance(self.data, meta.data_type)):
             raise TypeError(
-                f'Command {self.command} expected data type {meta["data_type"]}, got {type(self.data)}',
+                f'Command {self.command} expected data type {meta.data_type}, got {type(self.data)}',
             )
 
 
@@ -151,9 +152,9 @@ class Connection:
     and get responses as messages. Can be used as a context manager.
     '''
 
-    def __init__(self):
+    def __init__(self, serial_file_name='/dev/ttyUSB0'):
         self.serial = serial.Serial(
-            '/dev/ttyUSB0',
+            serial_file_name,
             9600,
             timeout=2,
             parity=serial.PARITY_EVEN,
