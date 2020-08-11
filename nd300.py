@@ -86,6 +86,12 @@ class Message:
         self.data = data
         self._validate()
 
+    def __eq__(self, other):
+        return (
+            self.command == other.command
+            and self.data == other.data
+        )
+
     def __repr__(self):
         '''Pretty print for debug.'''
         meta = _commands_metadata[self.command]
@@ -187,3 +193,81 @@ class Connection:
         if len(bytes_) != Message.MESSAGE_LENGTH:
             raise ValueError(f'Bad response: {bytes_}')
         return Message.from_bytes(bytes_)
+
+
+if __name__ == '__main__':
+    import unittest
+
+    class MessageTests(unittest.TestCase):
+        def test_compute_checksum(self):
+            def compare(bytes_, checksum):
+                self.assertEqual(
+                    _int_to_bytes(
+                        Message._compute_checksum(bytes_),
+                    ),
+                    checksum,
+                )
+            compare(b'\x01\x01\x00\xBB\x0B', b'\xC8')
+            compare(b'\xFF\xFF\xFF\xFF\xFF', b'\xFB')
+
+        def test_to_bytes(self):
+            def compare(message, bytes_):
+                self.assertEqual(
+                    message.to_bytes(),
+                    bytes_,
+                )
+            compare(
+                Message(Command.SINGLE_MACHINE_PAYOUT, 23),
+                b'\x01\x10\x00\x10\x17\x38',
+            )
+            compare(
+                Message(Command.RESET_DISPENSER),
+                b'\x01\x10\x00\x12\x00\x23',
+            )
+            compare(
+                Message(Command.PAYOUT_SUCCESSFUL, 3),
+                b'\x01\x01\x00\xAA\x03\xAF',
+            )
+
+        def test_from_bytes(self):
+            with self.assertRaises(ValueError):
+                # Too short
+                Message.from_bytes(b'\x01\x10\x00\x10\x17')
+            with self.assertRaises(ValueError):
+                # Too long
+                Message.from_bytes(b'\x01\x10\x00\x10\x17\x38\x01')
+            with self.assertRaises(ValueError):
+                # Must start with 0x01
+                Message.from_bytes(b'\x00\x10\x00\x10\x17\x38')
+            with self.assertRaises(ValueError):
+                # Bad checksum
+                Message.from_bytes(b'\x01\x10\x00\x10\x17\x33')
+            with self.assertRaises(ValueError):
+                # Bad sender
+                Message.from_bytes(b'\x01\x01\x00\x10\x17\x29')
+            with self.assertRaises(ValueError):
+                # Bad sender
+                Message.from_bytes(b'\x01\x10\x00\xAA\x03\xBE')
+            self.assertEqual(
+                Message.from_bytes(b'\x01\x10\x00\x10\x17\x38'),
+                Message(Command.SINGLE_MACHINE_PAYOUT, 23),
+            )
+            self.assertEqual(
+                Message.from_bytes(b'\x01\x01\x00\xAA\x03\xAF'),
+                Message(Command.PAYOUT_SUCCESSFUL, 3),
+            )
+
+        def test_validate(self):
+            with self.assertRaises(TypeError):
+                # Needs data
+                _ = Message(Command.SINGLE_MACHINE_PAYOUT)
+            with self.assertRaises(TypeError):
+                # Needs no data
+                _ = Message(Command.RESET_DISPENSER, 3)
+            with self.assertRaises(TypeError):
+                # Needs int data
+                _ = Message(Command.SINGLE_MACHINE_PAYOUT, 'Hello, world')
+            # This should not error out
+            _ = Message(Command.SINGLE_MACHINE_PAYOUT, 231)
+
+    unittest.main()
