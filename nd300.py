@@ -1,4 +1,4 @@
-'''This is an abstraction to easily communicate with a ND-300 CM/KM.
+'''This is an abstraction to easily communicate with a ND-300CM/KM.
 The multiple machine payout has been completetly ignored and is not
 implemented.
 '''
@@ -133,7 +133,7 @@ class Message:
         if len(bytes_) != Message.MESSAGE_LENGTH:
             raise ValueError(f'Expected a length {Message.MESSAGE_LENGTH} byte string')
         if bytes_[0] != 1:
-            raise ValueError(f'Bad starting byte: expected 0x01, got 0x{bytes_[0]}')
+            raise ValueError(f'Bad starting byte: expected 0x01, got {bytes_[0]}')
         sender = _Sender(bytes_[1])
         command = Command(bytes_[3])
         meta = _commands_metadata[command]
@@ -141,7 +141,7 @@ class Message:
         checksum = bytes_[5]
         computed_checksum = Message._compute_checksum(bytes_[:-1])
         if checksum != computed_checksum:
-            raise ValueError(f'Bad checksum, received {checksum} but computed {computed_checksum}')
+            raise ValueError(f'Bad checksum: received {checksum} but computed {computed_checksum}')
         if sender != meta.sender:
             raise ValueError(f'Bad message sender, received {sender} but expected {meta.sender}')
         return Message(command, data)
