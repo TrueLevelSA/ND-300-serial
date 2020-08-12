@@ -4,9 +4,8 @@ implemented.
 '''
 
 import serial
-import io
-import aenum
 from collections import namedtuple
+from enum import Enum
 
 
 def _int_to_bytes(i):
@@ -14,7 +13,7 @@ def _int_to_bytes(i):
     return int.to_bytes(i, 1, byteorder='big')
 
 
-class Sender(aenum.Enum):
+class Sender(Enum):
     '''Represents the two different parties that can communicate and
     their respective values on the protocol.
     '''
@@ -22,7 +21,7 @@ class Sender(aenum.Enum):
     machine = 0x01
 
 
-class Command(aenum.Enum):
+class Command(Enum):
     '''Available commands for the NV 300CM/KM. These commands can
     either be sent by the user or the machine and can have associated
     data.
