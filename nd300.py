@@ -24,15 +24,45 @@ class _Sender(Enum):
     machine = 0x01
 
 
-class Command(Enum):
-    '''Available commands for the NV 300CM/KM. These commands can
-    either be sent by the user or the machine and can have associated
-    data.
+class _CommandOrStatus(Enum):
+    '''This class represents the byte occupying the cmd/status field
+    over the protocol.
+    '''
+
+    @staticmethod
+    def from_byte(value):
+        try:
+            return Command(value)
+        except ValueError:
+            return Status(value)
+
+    def is_user_command(self):
+        return self in Command
+
+
+class Command(_CommandOrStatus):
+    '''Available commands for the ND-300CM/KM. These commands can
+    be sent by the user.
     '''
     SINGLE_MACHINE_PAYOUT = 0x10
     REQUEST_MACHINE_STATUS = 0x11
     RESET_DISPENSER = 0x12
     MULTIPLE_MACHINES_PAYOUT = 0x13
+
+    def data_type(self):
+        return _commands_data_types[self]
+
+    @classmethod
+    def sender(_cls):
+        return _Sender.user
+
+    @classmethod
+    def pretty_arrow(_cls):
+        return '==>'
+
+
+class Status(_CommandOrStatus):
+    '''Machine statuses the ND-300CM/KM can return after command calls.'''
     PAYOUT_SUCCESSFUL = 0xAA
     PAYOUT_FAILS = 0xBB
     STATUS_FINE = 0x00
@@ -49,30 +79,24 @@ class Command(Enum):
     CHECKSUM_ERROR = 0x0B
     LOW_POWER_ERROR = 0x0C
 
+    def data_type(self):
+        # All machine statuses have associated integer data.
+        return int
 
-# _commands_metadata contains the valid sender and data type (if any)
-# for each command of the protocol.
-_CommandMetaData = namedtuple('_CommandMetaData', 'sender data_type')
-_commands_metadata = {
-    Command.SINGLE_MACHINE_PAYOUT: _CommandMetaData(_Sender.user, int),
-    Command.REQUEST_MACHINE_STATUS: _CommandMetaData(_Sender.user, None),
-    Command.RESET_DISPENSER: _CommandMetaData(_Sender.user, None),
-    Command.MULTIPLE_MACHINES_PAYOUT: _CommandMetaData(_Sender.user, int),
-    Command.PAYOUT_SUCCESSFUL: _CommandMetaData(_Sender.machine, int),
-    Command.PAYOUT_FAILS: _CommandMetaData(_Sender.machine, int),
-    Command.STATUS_FINE: _CommandMetaData(_Sender.machine, int),
-    Command.EMPTY_NOTE: _CommandMetaData(_Sender.machine, int),
-    Command.STOCK_LESS: _CommandMetaData(_Sender.machine, int),
-    Command.NOTE_JAM: _CommandMetaData(_Sender.machine, int),
-    Command.OVER_LENGTH: _CommandMetaData(_Sender.machine, int),
-    Command.NOTE_NOT_EXIT: _CommandMetaData(_Sender.machine, int),
-    Command.SENSOR_ERROR: _CommandMetaData(_Sender.machine, int),
-    Command.DOUBLE_NOTE_ERROR: _CommandMetaData(_Sender.machine, int),
-    Command.MOTOR_ERROR: _CommandMetaData(_Sender.machine, int),
-    Command.DISPENSING_BUSY: _CommandMetaData(_Sender.machine, int),
-    Command.SENSOR_ADJUSTING: _CommandMetaData(_Sender.machine, int),
-    Command.CHECKSUM_ERROR: _CommandMetaData(_Sender.machine, int),
-    Command.LOW_POWER_ERROR: _CommandMetaData(_Sender.machine, int),
+    @classmethod
+    def sender(_cls):
+        return _Sender.machine
+
+    @classmethod
+    def pretty_arrow(_cls):
+        return '<=='
+
+
+_commands_data_types = {
+    Command.SINGLE_MACHINE_PAYOUT: int,
+    Command.REQUEST_MACHINE_STATUS: None,
+    Command.RESET_DISPENSER: None,
+    Command.MULTIPLE_MACHINES_PAYOUT: int,
 }
 
 
@@ -84,6 +108,7 @@ class Message:
     MESSAGE_LENGTH = 6
 
     def __init__(self, command, data=None):
+        '''command can represent a user command or a machine status.'''
         self.command = command
         self.data = data
         self._validate()
@@ -96,13 +121,11 @@ class Message:
 
     def __repr__(self):
         '''Pretty print for debug.'''
-        meta = _commands_metadata[self.command]
-        arrow = {_Sender.user: '==>', _Sender.machine: '<=='}[meta.sender]
-        if meta.data_type is None:
+        if self.command.data_type() is None:
             data = 'No data'
         else:
             data = self.data
-        return f'{arrow} {self.command} {data}'
+        return f'{self.command.pretty_arrow()} {self.command} {data}'
 
     @staticmethod
     def _compute_checksum(bytes_):
@@ -122,9 +145,9 @@ class Message:
             # present on the protocol for commmands with no data.
             data = 0
 
-        meta = _commands_metadata[self.command]
-        hex_string = f'01{meta.sender.value:02X}00{self.command.value:02X}{data:02X}'
-        bytes_ = bytes.fromhex(hex_string)
+        bytes_ = bytes.fromhex(
+            f'01{self.command.sender().value:02X}00{self.command.value:02X}{data:02X}',
+        )
         return bytes_ + _int_to_bytes(Message._compute_checksum(bytes_))
 
     @staticmethod
@@ -135,23 +158,22 @@ class Message:
         if bytes_[0] != 1:
             raise ValueError(f'Bad starting byte: expected 0x01, got {bytes_[0]}')
         sender = _Sender(bytes_[1])
-        command = Command(bytes_[3])
-        meta = _commands_metadata[command]
-        data = meta.data_type(bytes_[4])
+        command = _CommandOrStatus.from_byte(bytes_[3])
+        data = command.data_type()(bytes_[4])
         checksum = bytes_[5]
         computed_checksum = Message._compute_checksum(bytes_[:-1])
         if checksum != computed_checksum:
             raise ValueError(f'Bad checksum: received {checksum} but computed {computed_checksum}')
-        if sender != meta.sender:
-            raise ValueError(f'Bad message sender, received {sender} but expected {meta.sender}')
+        if sender != command.sender():
+            raise ValueError(f'Command {command} expected {command.sender()}, received {sender}')
         return Message(command, data)
 
     def _validate(self):
-        meta = _commands_metadata[self.command]
-        if not (self.data is None and meta.data_type is None
-                or isinstance(self.data, meta.data_type)):
+        expected_data_type =  self.command.data_type()
+        if not (self.data is None and expected_data_type is None
+                or isinstance(self.data, expected_data_type)):
             raise TypeError(
-                f'Command {self.command} expected data type {meta.data_type}, got {type(self.data)}',
+                f'Command {self.command} expected data type {expected_data_type}, got {type(self.data)}',
             )
 
 
@@ -179,7 +201,7 @@ class Connection:
 
     def send_command(self, command, data=None):
         '''Returns the message that was sent.'''
-        if _commands_metadata[command].sender == _Sender.machine:
+        if not command.is_user_command():
             raise ValueError(f'Expected an user command, got {command}')
 
         message = Message(command, data)
@@ -199,8 +221,8 @@ class Connection:
     def payout(self, quantity):
         command = self.send_command(Command.SINGLE_MACHINE_PAYOUT, quantity)
         response = self.read_response()
-        while (response.command == Command.DISPENSING_BUSY
-                or response.command == Command.PAYOUT_SUCCESSFUL):
+        while (response.command == Status.DISPENSING_BUSY
+                or response.command == Status.PAYOUT_SUCCESSFUL):
             self.send_command(Command.REQUEST_MACHINE_STATUS)
             response = self.read_response()
         return command, response
@@ -244,7 +266,7 @@ if __name__ == '__main__':
                 b'\x01\x10\x00\x12\x00\x23',
             )
             compare(
-                Message(Command.PAYOUT_SUCCESSFUL, 3),
+                Message(Status.PAYOUT_SUCCESSFUL, 3),
                 b'\x01\x01\x00\xAA\x03\xAF',
             )
 
@@ -273,7 +295,7 @@ if __name__ == '__main__':
             )
             self.assertEqual(
                 Message.from_bytes(b'\x01\x01\x00\xAA\x03\xAF'),
-                Message(Command.PAYOUT_SUCCESSFUL, 3),
+                Message(Status.PAYOUT_SUCCESSFUL, 3),
             )
 
         def test_validate(self):
