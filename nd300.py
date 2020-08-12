@@ -3,6 +3,9 @@ The multiple machine payout has been completetly ignored and is not
 implemented.
 '''
 
+__author__ = 'Quentin Jeanmonod <q@truelevel.ch>'
+__version__ = '1.0.0'
+
 import serial
 from collections import namedtuple
 from enum import Enum
