@@ -13,7 +13,7 @@ def _int_to_bytes(i):
     return int.to_bytes(i, 1, byteorder='big')
 
 
-class Sender(Enum):
+class _Sender(Enum):
     '''Represents the two different parties that can communicate and
     their respective values on the protocol.
     '''
@@ -51,25 +51,25 @@ class Command(Enum):
 # for each command of the protocol.
 _CommandMetaData = namedtuple('_CommandMetaData', 'sender data_type')
 _commands_metadata = {
-    Command.SINGLE_MACHINE_PAYOUT: _CommandMetaData(Sender.user, int),
-    Command.REQUEST_MACHINE_STATUS: _CommandMetaData(Sender.user, None),
-    Command.RESET_DISPENSER: _CommandMetaData(Sender.user, None),
-    Command.MULTIPLE_MACHINES_PAYOUT: _CommandMetaData(Sender.user, int),
-    Command.PAYOUT_SUCCESSFUL: _CommandMetaData(Sender.machine, int),
-    Command.PAYOUT_FAILS: _CommandMetaData(Sender.machine, int),
-    Command.STATUS_FINE: _CommandMetaData(Sender.machine, int),
-    Command.EMPTY_NOTE: _CommandMetaData(Sender.machine, int),
-    Command.STOCK_LESS: _CommandMetaData(Sender.machine, int),
-    Command.NOTE_JAM: _CommandMetaData(Sender.machine, int),
-    Command.OVER_LENGTH: _CommandMetaData(Sender.machine, int),
-    Command.NOTE_NOT_EXIT: _CommandMetaData(Sender.machine, int),
-    Command.SENSOR_ERROR: _CommandMetaData(Sender.machine, int),
-    Command.DOUBLE_NOTE_ERROR: _CommandMetaData(Sender.machine, int),
-    Command.MOTOR_ERROR: _CommandMetaData(Sender.machine, int),
-    Command.DISPENSING_BUSY: _CommandMetaData(Sender.machine, int),
-    Command.SENSOR_ADJUSTING: _CommandMetaData(Sender.machine, int),
-    Command.CHECKSUM_ERROR: _CommandMetaData(Sender.machine, int),
-    Command.LOW_POWER_ERROR: _CommandMetaData(Sender.machine, int),
+    Command.SINGLE_MACHINE_PAYOUT: _CommandMetaData(_Sender.user, int),
+    Command.REQUEST_MACHINE_STATUS: _CommandMetaData(_Sender.user, None),
+    Command.RESET_DISPENSER: _CommandMetaData(_Sender.user, None),
+    Command.MULTIPLE_MACHINES_PAYOUT: _CommandMetaData(_Sender.user, int),
+    Command.PAYOUT_SUCCESSFUL: _CommandMetaData(_Sender.machine, int),
+    Command.PAYOUT_FAILS: _CommandMetaData(_Sender.machine, int),
+    Command.STATUS_FINE: _CommandMetaData(_Sender.machine, int),
+    Command.EMPTY_NOTE: _CommandMetaData(_Sender.machine, int),
+    Command.STOCK_LESS: _CommandMetaData(_Sender.machine, int),
+    Command.NOTE_JAM: _CommandMetaData(_Sender.machine, int),
+    Command.OVER_LENGTH: _CommandMetaData(_Sender.machine, int),
+    Command.NOTE_NOT_EXIT: _CommandMetaData(_Sender.machine, int),
+    Command.SENSOR_ERROR: _CommandMetaData(_Sender.machine, int),
+    Command.DOUBLE_NOTE_ERROR: _CommandMetaData(_Sender.machine, int),
+    Command.MOTOR_ERROR: _CommandMetaData(_Sender.machine, int),
+    Command.DISPENSING_BUSY: _CommandMetaData(_Sender.machine, int),
+    Command.SENSOR_ADJUSTING: _CommandMetaData(_Sender.machine, int),
+    Command.CHECKSUM_ERROR: _CommandMetaData(_Sender.machine, int),
+    Command.LOW_POWER_ERROR: _CommandMetaData(_Sender.machine, int),
 }
 
 
@@ -94,7 +94,7 @@ class Message:
     def __repr__(self):
         '''Pretty print for debug.'''
         meta = _commands_metadata[self.command]
-        arrow = {Sender.user: '==>', Sender.machine: '<=='}[meta.sender]
+        arrow = {_Sender.user: '==>', _Sender.machine: '<=='}[meta.sender]
         if meta.data_type is None:
             data = 'No data'
         else:
@@ -131,7 +131,7 @@ class Message:
             raise ValueError(f'Expected a length {Message.MESSAGE_LENGTH} byte string')
         if bytes_[0] != 1:
             raise ValueError(f'Bad starting byte: expected 0x01, got 0x{bytes_[0]}')
-        sender = Sender(bytes_[1])
+        sender = _Sender(bytes_[1])
         command = Command(bytes_[3])
         meta = _commands_metadata[command]
         data = meta.data_type(bytes_[4])
@@ -176,7 +176,7 @@ class Connection:
 
     def send_command(self, command, data=None):
         '''Returns the message that was sent.'''
-        if _commands_metadata[command].sender == Sender.machine:
+        if _commands_metadata[command].sender == _Sender.machine:
             raise ValueError(f'Expected an user command, got {command}')
 
         message = Message(command, data)
