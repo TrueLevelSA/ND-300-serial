@@ -196,6 +196,23 @@ class Connection:
             raise ValueError(f'Bad response: {bytes_}')
         return Message.from_bytes(bytes_)
 
+    def payout(self, quantity):
+        command = self.send_command(Command.SINGLE_MACHINE_PAYOUT, quantity)
+        response = self.read_response()
+        while (response.command == Command.DISPENSING_BUSY
+                or response.command == Command.PAYOUT_SUCCESSFUL):
+            self.send_command(Command.REQUEST_MACHINE_STATUS)
+            response = self.read_response()
+        return command, response
+
+    def status(self):
+        command = self.send_command(Command.REQUEST_MACHINE_STATUS)
+        response = self.read_response()
+        return command, response
+
+    def reset_dispenser(self):
+        return self.send_command(Command.RESET_DISPENSER)
+
 
 if __name__ == '__main__':
     import unittest

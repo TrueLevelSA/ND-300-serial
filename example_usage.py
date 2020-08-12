@@ -1,31 +1,23 @@
-from nd300 import Connection, Command
+from nd300 import Connection
 
 
 with Connection() as connection:
     def payout():
         quantity = input('How many bills do you want to payout?')
-        print(connection.send_command(Command.SINGLE_MACHINE_PAYOUT, int(quantity)))
-        print('Dispensing...')
-        response = connection.read_response()
-        print(response)
-
-        connection.send_command(Command.REQUEST_MACHINE_STATUS)
-        response = connection.read_response()
-        while response.command == Command.DISPENSING_BUSY:
-            connection.send_command(Command.REQUEST_MACHINE_STATUS)
-            response = connection.read_response()
-
+        command, response = connection.payout(int(quantity))
+        print(command)
         print(response)
 
     def quit():
         raise StopIteration
 
     def status():
-        print(connection.send_command(Command.REQUEST_MACHINE_STATUS))
-        print(connection.read_response())
+        command, response = connection.status()
+        print(command)
+        print(response)
 
     def reset_dispenser():
-        print(connection.send_command(Command.RESET_DISPENSER))
+        print(connection.reset_dispenser())
 
     def print_usage():
         print('p: payout bills')
