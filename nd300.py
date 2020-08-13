@@ -107,9 +107,9 @@ class Message:
 
     MESSAGE_LENGTH = 6
 
-    def __init__(self, command, data=None):
+    def __init__(self, command_or_status, data=None):
         '''command can represent a user command or a machine status.'''
-        self.command = command
+        self.command = command_or_status
         self.data = data
         self._validate()
 
