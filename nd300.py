@@ -182,11 +182,11 @@ class Connection:
     and get responses as messages. Can be used as a context manager.
     '''
 
-    def __init__(self, serial_file_name='/dev/ttyUSB0'):
+    def __init__(self, serial_file_name='/dev/ttyUSB0', timeout=10):
         self.serial = serial.Serial(
             serial_file_name,
             9600,
-            timeout=2,
+            timeout=timeout,
             parity=serial.PARITY_EVEN,
         )
 
