@@ -1,3 +1,9 @@
+# ND-300-serial
+# This file is licensed under the AGPL v3.0. You may find it here:
+# https://github.com/TrueLevelSA/ND-300-serial/blob/master/LICENSE
+# Copyright (C) 2020 TrueLevel SA.
+# Authors: Quentin Jeanmonod "roflolilolmao" q@truelevel.ch
+
 from setuptools import setup
 import nd300
 
